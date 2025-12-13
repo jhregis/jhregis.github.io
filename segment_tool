@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Segmented Pattern Master</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #e67e22;
+            --bg: #f4f4f9;
+        }
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: #333;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { color: var(--primary); margin-bottom: 10px; }
+        
+        /* Layout */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+        
+        .panel {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        /* Controls */
+        .form-group { margin-bottom: 12px; }
+        label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+        input[type="number"], input[type="range"] {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        /* Palette */
+        .palette-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin-top: 10px;
+        }
+        .swatch {
+            width: 100%;
+            height: 30px;
+            border: 2px solid transparent;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        .swatch:hover { transform: scale(1.1); }
+        .swatch.active { border-color: #333; transform: scale(0.9); box-shadow: 0 0 5px rgba(0,0,0,0.3); }
+
+        /* Pattern Grid */
+        .pattern-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border: 1px solid #eee;
+        }
+        .grid-row { display: flex; }
+        .grid-cell {
+            width: 30px;
+            height: 20px;
+            border: 1px solid rgba(0,0,0,0.1);
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .grid-cell:hover { opacity: 0.8; }
+        
+        /* Canvas */
+        canvas {
+            width: 100%;
+            height: 200px;
+            background: white;
+            border-bottom: 1px solid #eee;
+        }
+
+        /* Table */
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+        th, td { padding: 8px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background-color: var(--primary); color: white; }
+        .species-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: white;
+            font-size: 11px;
+            margin-right: 5px;
+            margin-bottom: 2px;
+            text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+        }
+
+        .btn {
+            background: var(--primary); color: white; border: none; padding: 10px; 
+            width: 100%; border-radius: 4px; cursor: pointer; margin-top: 10px;
+        }
+        .btn:hover { background: #34495e; }
+        .instructions { font-size: 12px; color: #666; margin-top: 5px; font-style: italic;}
+    </style>
+</head>
+<body>
+
+    <h1>Segmented Pattern Master</h1>
+
+    <div class="dashboard">
+        
+        <div class="sidebar">
+            <div class="panel">
+                <h3>1. Dimensions</h3>
+                <div class="form-group">
+                    <label>Total Height (in)</label>
+                    <input type="number" id="height" value="6" step="0.25" onchange="rebuildGrid()">
+                </div>
+                <div class="form-group">
+                    <label>Board Thickness (in)</label>
+                    <input type="number" id="thickness" value="0.75" step="0.05" onchange="rebuildGrid()">
+                </div>
+                <div class="form-group">
+                    <label>Segments per Ring</label>
+                    <input type="number" id="segments" value="12" step="1" onchange="rebuildGrid()">
+                </div>
+                <div class="form-group">
+                    <label>Bottom Diameter (in)</label>
+                    <input type="number" id="botDia" value="4" onchange="updateCalcOnly()">
+                </div>
+                <div class="form-group">
+                    <label>Top Diameter (in)</label>
+                    <input type="number" id="topDia" value="9" onchange="updateCalcOnly()">
+                </div>
+                <div class="form-group">
+                    <label>Shape Curve</label>
+                    <input type="range" id="curve" min="0.5" max="2.5" step="0.1" value="1.3" oninput="updateCalcOnly()">
+                </div>
+            </div>
+
+            <div class="panel" style="margin-top: 20px;">
+                <h3>2. Wood Palette</h3>
+                <div class="instructions">Select a wood, then paint the grid.</div>
+                <div class="palette-grid" id="paletteBox"></div>
+                <button class="btn" onclick="clearPattern()">Reset Pattern (Fill All Primary)</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            
+            <div class="panel">
+                <h3>3. Pattern Designer (Flattened View)</h3>
+                <div class="instructions">Rows = Layers (Top is Top). Columns = Segments. Click or Drag to paint.</div>
+                <div class="pattern-container" id="patternGrid" onmouseleave="isDrawing=false">
+                    </div>
+            </div>
+
+            <div class="panel" style="margin-top: 20px;">
+                <h3>4. Profile Preview & Cut List</h3>
+                <canvas id="profileCanvas"></canvas>
+                <div style="margin: 10px 0; font-weight: bold; color: var(--accent);">
+                    Miter Angle: <span id="miterDisplay">0°</span> | Segments: <span id="segCountDisplay">0</span>
+                </div>
+                <table id="cutTable">
+                    <thead>
+                        <tr>
+                            <th>Layer</th>
+                            <th>Outer Dia</th>
+                            <th>Segment Len</th>
+                            <th>Materials Needed (Count x Species)</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- CONFIGURATION ---
+    const woods = [
+        { name: "Maple", color: "#F3DFA2" },
+        { name: "Oak", color: "#C69C6D" },
+        { name: "Cherry", color: "#A85641" },
+        { name: "Walnut", color: "#5D4037" },
+        { name: "Padauk", color: "#D32F2F" },
+        { name: "Purpleheart", color: "#7B1FA2" },
+        { name: "Wenge", color: "#3E2723" },
+        { name: "Ebony", color: "#212121" },
+        { name: "Yellowheart", color: "#FBC02D" },
+        { name: "Bloodwood", color: "#B71C1C" },
+        { name: "Zebrawood", color: "#8D6E63" },
+        { name: "Holly", color: "#F5F5F5" },
+        { name: "Mahogany", color: "#5D3028" },
+        { name: "Teak", color: "#8D5837" },
+        { name: "Rosewood", color: "#4E342E" },
+        { name: "Bubinga", color: "#883838" },
+        { name: "Ash", color: "#E0C09F" },
+        { name: "Poplar", color: "#C6C898" },
+        { name: "Cedar", color: "#D78E6C" },
+        { name: "Pine", color: "#F0E68C" },
+        { name: "Cocobolo", color: "#571508" },
+        { name: "Koa", color: "#955829" },
+        { name: "Osage", color: "#FF9800" },
+        { name: "Blue Mahoe", color: "#607D8B" }
+    ];
+
+    let selectedColorIndex = 0; // Default to Maple
+    let gridData = []; // Stores color index for [layer][segment]
+    let isDrawing = false;
+
+    // --- INITIALIZATION ---
+    function init() {
+        const pBox = document.getElementById('paletteBox');
+        woods.forEach((wood, index) => {
+            let d = document.createElement('div');
+            d.className = 'swatch';
+            if(index === 0) d.classList.add('active');
+            d.style.backgroundColor = wood.color;
+            d.title = wood.name;
+            d.onclick = () => selectColor(index, d);
+            pBox.appendChild(d);
+        });
+        rebuildGrid();
+    }
+
+    function selectColor(index, el) {
+        selectedColorIndex = index;
+        document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+        el.classList.add('active');
+    }
+
+    // --- GRID LOGIC ---
+    function rebuildGrid() {
+        const H = parseFloat(document.getElementById('height').value);
+        const T = parseFloat(document.getElementById('thickness').value);
+        const S = parseInt(document.getElementById('segments').value);
+        
+        const numLayers = Math.ceil(H/T);
+        
+        // Preserve old pattern if possible, else fill default
+        let newGrid = [];
+        for(let r=0; r<numLayers; r++) {
+            let row = [];
+            for(let c=0; c<S; c++) {
+                // Try to keep existing color if resizing
+                if(gridData[r] && gridData[r][c] !== undefined) {
+                    row.push(gridData[r][c]);
+                } else {
+                    row.push(0); // Default to first wood
+                }
+            }
+            newGrid.push(row);
+        }
+        gridData = newGrid;
+        
+        renderGridUI(numLayers, S);
+        updateCalcOnly();
+    }
+
+    function renderGridUI(rows, cols) {
+        const container = document.getElementById('patternGrid');
+        container.innerHTML = '';
+        
+        // Render from Top (last index) to Bottom (0 index) visually? 
+        // Usually visually top-down. So row 0 in UI is Layer N.
+        // Let's stick to: Visual Top = Layer N. Visual Bottom = Layer 1.
+        
+        for(let r=rows-1; r>=0; r--) {
+            let rowDiv = document.createElement('div');
+            rowDiv.className = 'grid-row';
+            
+            for(let c=0; c<cols; c++) {
+                let cell = document.createElement('div');
+                cell.className = 'grid-cell';
+                cell.style.backgroundColor = woods[gridData[r][c]].color;
+                cell.dataset.r = r;
+                cell.dataset.c = c;
+                
+                // Mouse Events for Painting
+                cell.onmousedown = (e) => { 
+                    e.preventDefault(); // prevent drag selection
+                    isDrawing = true; 
+                    paintCell(r, c, cell); 
+                };
+                cell.onmouseenter = () => { 
+                    if(isDrawing) paintCell(r, c, cell); 
+                };
+                cell.onmouseup = () => { isDrawing = false; };
+                
+                rowDiv.appendChild(cell);
+            }
+            container.appendChild(rowDiv);
+        }
+        // Global mouse up to stop drawing if left grid
+        document.body.onmouseup = () => { isDrawing = false; };
+
